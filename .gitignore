@@ -1,0 +1,42 @@
+# Hassas Dosyalar (GÜVENLİK!)
+credentials.json
+*.json.backup
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Database backups
+*.db.backup
+databases/*.db.backup
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+nul
