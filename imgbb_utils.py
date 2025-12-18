@@ -13,8 +13,19 @@ import sys
 if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
 
-# imgbb API Key - https://api.imgbb.com/ adresinden alabilirsin
-IMGBB_API_KEY = "eae6d590925076dff64ba4d166a6c0b3"  # API key eklendi! ✅
+def get_imgbb_api_key():
+    """
+    Session state'ten imgbb API key al
+    Eğer Streamlit context'i yoksa (script modu), None döner
+    """
+    try:
+        import streamlit as st
+        return st.session_state.get('imgbb_api_key', '')
+    except:
+        # Streamlit context dışında (test, migration scripts vb.)
+        return "eae6d590925076dff64ba4d166a6c0b3"  # Fallback (senin key'in)
+
+IMGBB_API_KEY = get_imgbb_api_key()
 
 def optimize_image_for_imgbb(image_source, is_path=False):
     """
@@ -74,8 +85,11 @@ def upload_image_to_imgbb(image_source, filename="image", is_path=False):
         veya None (hata durumunda)
     """
     try:
-        if IMGBB_API_KEY == "YOUR_API_KEY_HERE":
-            print("❌ imgbb API key eklenmemiş! imgbb_utils.py dosyasını düzenle.")
+        # Her çağrıda güncel API key'i al
+        api_key = get_imgbb_api_key()
+
+        if not api_key or api_key == "YOUR_API_KEY_HERE":
+            print("❌ imgbb API key eklenmemiş! Lütfen imgbb API key'inizi girin.")
             return None
 
         # Görseli optimize et ve Base64'e çevir
@@ -88,7 +102,7 @@ def upload_image_to_imgbb(image_source, filename="image", is_path=False):
 
         # Request parametreleri
         payload = {
-            "key": IMGBB_API_KEY,
+            "key": api_key,
             "image": base64_image,
             "name": filename
         }

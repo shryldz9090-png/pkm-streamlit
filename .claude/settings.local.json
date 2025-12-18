@@ -36,7 +36,13 @@
       "Bash(python:*)",
       "Bash(cat:*)",
       "Bash(copy \"c:\\Users\\LENOVO\\Desktop\\PKM Streamlit\\app_new.py\" \"c:\\Users\\LENOVO\\Desktop\\PKM Streamlit\\pages\\1_📊_Portföy.py\")",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git remote:*)",
+      "Bash(git config:*)",
+      "Bash(set GIT_ASKPASS=echo)"
     ],
     "deny": [],
     "ask": []
