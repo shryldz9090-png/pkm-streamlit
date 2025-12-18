@@ -59,14 +59,25 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # =============================================================================
+# CREDENTIALS CHECK
+# =============================================================================
+
+# Credentials kontrolü - Eğer yüklenmemişse ana sayfaya yönlendir
+if 'credentials_data' not in st.session_state or not st.session_state.get('credentials_loaded', False):
+    st.error("❌ Credentials yüklenmemiş! Lütfen ana sayfadan credentials.json dosyanızı yükleyin.")
+    if st.button("🏠 Ana Sayfaya Git"):
+        st.switch_page("Home.py")
+    st.stop()
+
+# =============================================================================
 # GOOGLE SHEETS FUNCTIONS
 # =============================================================================
 
 @st.cache_resource
-def get_google_sheets():
-    """Google Sheets bağlantısını döndürür"""
+def get_google_sheets(_creds_data):
+    """Google Sheets bağlantısını döndürür - credentials session state'ten alınır"""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_data, scope)
     client = gspread.authorize(creds)
     return client.open("PKM Database")
 
@@ -175,7 +186,7 @@ def load_positions_data():
 
     # Veriyi yükle
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Pozisyonlar')
         data = get_sheet_data_as_dict(sheet)
 
@@ -198,7 +209,7 @@ def clear_positions_cache():
 def add_position(position_type, entry_price, lot_size, stop_loss, take_profit, plan_note, market=""):
     """Yeni pozisyon ekler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Pozisyonlar')
 
         next_id = get_next_id(sheet)
@@ -234,7 +245,7 @@ def add_position(position_type, entry_price, lot_size, stop_loss, take_profit, p
 def close_position(position_id, exit_price, lesson_learned=""):
     """Pozisyonu kapatır"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Pozisyonlar')
 
         all_data = sheet.get_all_values()
@@ -283,7 +294,7 @@ def close_position(position_id, exit_price, lesson_learned=""):
 def update_position(position_id, stop_loss=None, take_profit=None, plan_note=None):
     """Pozisyon bilgilerini günceller"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Pozisyonlar')
 
         all_data = sheet.get_all_values()
@@ -314,7 +325,7 @@ def update_position(position_id, stop_loss=None, take_profit=None, plan_note=Non
 def delete_position(position_id):
     """Pozisyonu siler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Pozisyonlar')
 
         all_data = sheet.get_all_values()
@@ -349,7 +360,7 @@ def load_experiences_data():
 
     # Veriyi yükle
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Gorsel_Tecrubeler')
         data = get_sheet_data_as_dict(sheet)
 
@@ -372,7 +383,7 @@ def clear_experiences_cache():
 def load_categories():
     """Kategorileri yükler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Kategoriler')
         data = get_sheet_data_as_dict(sheet)
         return [cat.get('Kategori Adı', '') for cat in data if cat.get('Kategori Adı')]
@@ -389,7 +400,7 @@ def add_experience(title, category, note, image_data, loss_amount=0, is_url=Fals
         is_url: True ise image_data bir URL'dir
     """
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Gorsel_Tecrubeler')
 
         next_id = get_next_id(sheet)
@@ -418,7 +429,7 @@ def add_experience(title, category, note, image_data, loss_amount=0, is_url=Fals
 def delete_experience(experience_id):
     """Görsel tecrübeyi siler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Gorsel_Tecrubeler')
 
         all_data = sheet.get_all_values()
@@ -439,7 +450,7 @@ def delete_experience(experience_id):
 def update_experience(experience_id, title=None, category=None, note=None, loss_amount=None):
     """Görsel tecrübeyi günceller (görsel hariç)"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Gorsel_Tecrubeler')
 
         all_data = sheet.get_all_values()
@@ -477,7 +488,7 @@ def update_experience(experience_id, title=None, category=None, note=None, loss_
 def load_quotes_data():
     """Özlü sözleri yükler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Ozlu_Sozler')
         data = get_sheet_data_as_dict(sheet)
         # Sıraya göre sırala
@@ -489,7 +500,7 @@ def load_quotes_data():
 def add_quote(quote_text, order, color="#3b82f6"):
     """Yeni özlü söz ekler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Ozlu_Sozler')
 
         next_id = get_next_id(sheet)
@@ -513,7 +524,7 @@ def add_quote(quote_text, order, color="#3b82f6"):
 def update_quote(quote_id, quote_text, order, color):
     """Özlü sözü günceller"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Ozlu_Sozler')
 
         all_data = sheet.get_all_values()
@@ -541,7 +552,7 @@ def update_quote(quote_id, quote_text, order, color):
 def delete_quote(quote_id):
     """Özlü sözü siler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Ozlu_Sozler')
 
         all_data = sheet.get_all_values()
@@ -573,7 +584,7 @@ def load_notes_data():
             return st.session_state[cache_key]
 
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Kendime_Notlar')
         data = get_sheet_data_as_dict(sheet)
 
@@ -588,7 +599,7 @@ def load_notes_data():
 def add_note(baslik, kategori, icerik, gorsel_url=""):
     """Yeni not ekler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Kendime_Notlar')
 
         next_id = get_next_id(sheet)
@@ -614,7 +625,7 @@ def add_note(baslik, kategori, icerik, gorsel_url=""):
 def update_note(note_id, baslik, kategori, icerik, gorsel_url=""):
     """Notu günceller"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Kendime_Notlar')
 
         all_data = sheet.get_all_values()
@@ -643,7 +654,7 @@ def update_note(note_id, baslik, kategori, icerik, gorsel_url=""):
 def delete_note(note_id):
     """Notu siler"""
     try:
-        spreadsheet = get_google_sheets()
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
         sheet = spreadsheet.worksheet('Kendime_Notlar')
 
         all_data = sheet.get_all_values()
@@ -1062,7 +1073,7 @@ elif feature == "📊 Pozisyon Yönetimi":
             with col_confirm:
                 if st.button("✅ Evet, Tümünü Sil", key="confirm_clear", use_container_width=True):
                     try:
-                        spreadsheet = get_google_sheets()
+                        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
                         sheet = spreadsheet.worksheet('Pozisyonlar')
                         all_data = sheet.get_all_values()
                         header = all_data[0]

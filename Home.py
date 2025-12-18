@@ -80,10 +80,8 @@ if not st.session_state['credentials_loaded']:
             # Gerekli alanları kontrol et
             required_fields = ['type', 'project_id', 'private_key', 'client_email']
             if all(field in creds_data for field in required_fields):
-                # Geçici dosyaya kaydet
-                with open('credentials.json', 'w') as f:
-                    json.dump(creds_data, f)
-
+                # Session state'e kaydet (dosyaya değil!)
+                st.session_state['credentials_data'] = creds_data
                 st.session_state['credentials_loaded'] = True
                 st.success("✅ Credentials başarıyla yüklendi!")
                 st.info(f"📧 Service Account: {creds_data['client_email']}")

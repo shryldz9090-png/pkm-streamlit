@@ -162,12 +162,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# =============================================================================
+# CREDENTIALS CHECK
+# =============================================================================
+
+# Credentials kontrolü - Eğer yüklenmemişse ana sayfaya yönlendir
+if 'credentials_data' not in st.session_state or not st.session_state.get('credentials_loaded', False):
+    st.error("❌ Credentials yüklenmemiş! Lütfen ana sayfadan credentials.json dosyanızı yükleyin.")
+    if st.button("🏠 Ana Sayfaya Git"):
+        st.switch_page("Home.py")
+    st.stop()
+
 # Cache for Google Sheets connection
 @st.cache_resource
-def get_sheets_client():
-    """Connect to Google Sheets."""
+def get_sheets_client(_creds_data):
+    """Connect to Google Sheets using credentials from session state."""
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_data, scope)
     client = gspread.authorize(creds)
     return client.open("PKM Database")
 
@@ -497,8 +508,8 @@ def main():
         st.markdown("---")
 
     try:
-        # Connect to database
-        db = get_sheets_client()
+        # Connect to database using credentials from session state
+        db = get_sheets_client(st.session_state['credentials_data'])
         assets_sheet = db.worksheet("assets")
         debts_sheet = db.worksheet("debts")
 
