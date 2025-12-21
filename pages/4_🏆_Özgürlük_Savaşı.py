@@ -147,28 +147,6 @@ def get_challenge_data():
         st.error(f"Challenge verileri yüklenirken hata: {e}")
         return []
 
-def get_current_portfolio_value():
-    """Portföy sayfasından toplam varlık değerini alır"""
-    try:
-        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
-        assets_sheet = spreadsheet.worksheet('assets')
-        assets = get_sheet_data_as_dict(assets_sheet)
-
-        # Basit toplam hesaplama (gerçek fiyatları çekmeden)
-        total = 0
-        for asset in assets:
-            try:
-                amount = float(asset.get('amount', 0))
-                buy_price = float(asset.get('buy_price', 0))
-                total += amount * buy_price
-            except:
-                continue
-
-        return total
-    except Exception as e:
-        st.error(f"Portföy değeri hesaplanırken hata: {e}")
-        return 0
-
 def add_daily_record(kasa_tutari, settings):
     """Günlük kayıt ekler"""
     try:
@@ -229,11 +207,107 @@ def add_daily_record(kasa_tutari, settings):
         return False
 
 # =============================================================================
+# İŞLEM YÖNETİMİ FONKSİYONLARI
+# =============================================================================
+
+def load_challenge_trades():
+    """Özgürlük Savaşı işlemlerini yükler"""
+    try:
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.worksheet('Challenge_Trades')
+        data = get_sheet_data_as_dict(sheet)
+        return data
+    except gspread.exceptions.WorksheetNotFound:
+        # Sheet yoksa oluştur
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.add_worksheet(title='Challenge_Trades', rows=100, cols=10)
+        headers = ['ID', 'Yon', 'Enstruman', 'Giris_Fiyat', 'Lot', 'Cikis_Fiyat', 'Kar_Zarar', 'Durum', 'Acilis_Tarihi', 'Kapanis_Tarihi']
+        sheet.append_row(headers)
+        return []
+    except Exception as e:
+        st.error(f"İşlemler yüklenirken hata: {e}")
+        return []
+
+def add_trade(yon, enstruman, giris_fiyat, lot):
+    """Yeni işlem aç"""
+    try:
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.worksheet('Challenge_Trades')
+
+        next_id = get_next_id(sheet)
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        row = [
+            next_id,
+            yon,
+            enstruman,
+            float(giris_fiyat),
+            float(lot),
+            '',  # Çıkış fiyatı (henüz yok)
+            '',  # Kar/Zarar (henüz yok)
+            'ACIK',  # Durum
+            now,  # Açılış tarihi
+            ''  # Kapanış tarihi (henüz yok)
+        ]
+
+        sheet.append_row(row)
+        return True
+    except Exception as e:
+        st.error(f"İşlem eklenirken hata: {e}")
+        return False
+
+def close_trade(trade_id, cikis_fiyat):
+    """İşlemi kapat"""
+    try:
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.worksheet('Challenge_Trades')
+
+        all_data = sheet.get_all_values()
+        header = all_data[0]
+
+        # Kolon indekslerini bul
+        id_col = header.index('ID') + 1
+        yon_col = header.index('Yon') + 1
+        giris_col = header.index('Giris_Fiyat') + 1
+        lot_col = header.index('Lot') + 1
+        cikis_col = header.index('Cikis_Fiyat') + 1
+        kar_zarar_col = header.index('Kar_Zarar') + 1
+        durum_col = header.index('Durum') + 1
+        kapanis_col = header.index('Kapanis_Tarihi') + 1
+
+        # Satırı bul ve güncelle
+        for row_idx, row in enumerate(all_data[1:], start=2):
+            if str(row[id_col - 1]) == str(trade_id):
+                yon = row[yon_col - 1]
+                giris = float(row[giris_col - 1])
+                lot = float(row[lot_col - 1])
+
+                # Kar/Zarar hesapla
+                if yon == 'LONG':
+                    kar_zarar = (float(cikis_fiyat) - giris) * lot
+                else:  # SHORT
+                    kar_zarar = (giris - float(cikis_fiyat)) * lot
+
+                # Güncelleme yap
+                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                sheet.update_cell(row_idx, cikis_col, float(cikis_fiyat))
+                sheet.update_cell(row_idx, kar_zarar_col, round(kar_zarar, 2))
+                sheet.update_cell(row_idx, durum_col, 'KAPALI')
+                sheet.update_cell(row_idx, kapanis_col, now)
+
+                return True, kar_zarar
+
+        return False, 0
+    except Exception as e:
+        st.error(f"İşlem kapatılırken hata: {e}")
+        return False, 0
+
+# =============================================================================
 # MAIN PAGE
 # =============================================================================
 
 st.title("🏆 Özgürlük Savaşı")
-st.markdown("### Finansal hedefine ulaşma yolculuğunu takip et!")
+st.markdown("### Finansal özgürlüğe giden yolculuk!")
 st.markdown("---")
 
 # Challenge ayarlarını kontrol et
@@ -241,13 +315,13 @@ settings = get_challenge_settings()
 
 if not settings or settings['baslangic_sermaye'] == 0:
     # İlk kurulum
-    st.info("🎯 Challenge'ı başlatmak için aşağıdaki bilgileri girin!")
+    st.info("🎯 Savaşı başlatmak için aşağıdaki bilgileri girin!")
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
         baslangic_sermaye = st.number_input(
-            "💰 Başlangıç Sermayesi (TL)",
+            "💰 Başlangıç Sermayesi ($)",
             min_value=0.0,
             step=100.0,
             value=1000.0
@@ -255,7 +329,7 @@ if not settings or settings['baslangic_sermaye'] == 0:
 
     with col2:
         hedef_tutar = st.number_input(
-            "🎯 Hedef Tutar (TL)",
+            "🎯 Hedef Tutar ($)",
             min_value=0.0,
             step=1000.0,
             value=10000.0
@@ -281,10 +355,18 @@ if not settings or settings['baslangic_sermaye'] == 0:
             st.error("❌ Lütfen geçerli değerler girin! (Hedef > Başlangıç olmalı)")
 
 else:
-    # Challenge aktif - verileri göster
+    # Challenge aktif
 
-    # Güncel verileri al
-    challenge_data = get_challenge_data()
+    # İşlemleri yükle
+    trades = load_challenge_trades()
+    acik_trades = [t for t in trades if t.get('Durum') == 'ACIK']
+    kapali_trades = [t for t in trades if t.get('Durum') == 'KAPALI']
+
+    # Toplam kar/zarar hesapla
+    toplam_kar_zarar = sum([float(t.get('Kar_Zarar', 0)) for t in kapali_trades if t.get('Kar_Zarar')])
+
+    # Anlık kasa
+    current_kasa = settings['baslangic_sermaye'] + toplam_kar_zarar
 
     # Başlangıç tarihi
     start_date = datetime.strptime(settings['baslangic_tarihi'], '%Y-%m-%d')
@@ -293,13 +375,6 @@ else:
     # Geçen ve kalan gün
     days_passed = (current_date - start_date).days
     remaining_days = max(0, settings['hedef_sure_gun'] - days_passed)
-
-    # Anlık kasa (en son kayıt)
-    current_kasa = settings['baslangic_sermaye']
-    if challenge_data:
-        sorted_data = sorted(challenge_data, key=lambda x: x.get('Tarih', ''), reverse=True)
-        if sorted_data:
-            current_kasa = float(sorted_data[0].get('Kasa', settings['baslangic_sermaye']))
 
     # Hedefe kalan tutar
     hedefe_kalan = settings['hedef_tutar'] - current_kasa
@@ -316,8 +391,8 @@ else:
     with col1:
         st.metric(
             label="💵 Anlık Kasa",
-            value=f"₺{current_kasa:,.2f}",
-            delta=f"₺{current_kasa - settings['baslangic_sermaye']:,.2f}"
+            value=f"${current_kasa:,.2f}",
+            delta=f"${toplam_kar_zarar:,.2f}"
         )
 
     with col2:
@@ -330,106 +405,112 @@ else:
     with col3:
         st.metric(
             label="🎯 Hedefe Kalan",
-            value=f"₺{hedefe_kalan:,.2f}",
-            delta=f"Hedef: ₺{settings['hedef_tutar']:,.2f}"
+            value=f"${hedefe_kalan:,.2f}",
+            delta=f"Hedef: ${settings['hedef_tutar']:,.2f}"
         )
 
     with col4:
         st.metric(
             label="📈 Günlük Hedef",
-            value=f"₺{gunluk_hedef:,.2f}/gün",
+            value=f"${gunluk_hedef:,.2f}/gün",
             delta="Ortalama kazanç hedefi"
         )
 
     st.markdown("---")
 
-    # GÜNLÜK KAYIT EKLEME
-    with st.expander("➕ Bugünün Kaydını Ekle"):
-        st.markdown("**Portföy değerinizi manuel girin veya otomatik hesaplayın:**")
-
-        col_a, col_b = st.columns(2)
+    # YENİ İŞLEM AÇ
+    with st.expander("➕ Yeni İşlem Aç", expanded=False):
+        col_a, col_b, col_c, col_d = st.columns(4)
 
         with col_a:
-            manual_kasa = st.number_input(
-                "💰 Bugünkü Kasa Tutarı (TL)",
-                min_value=0.0,
-                step=10.0,
-                value=current_kasa
-            )
+            yon = st.selectbox("📊 İşlem Yönü", ["LONG", "SHORT"])
 
         with col_b:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("📊 Portföyden Otomatik Al"):
-                portfolio_value = get_current_portfolio_value()
-                if portfolio_value > 0:
-                    manual_kasa = portfolio_value
-                    st.success(f"✅ Portföy değeri: ₺{portfolio_value:,.2f}")
+            enstruman = st.text_input("🪙 Enstrüman", placeholder="GOLD, BTC, EUR/USD...")
 
-        if st.button("💾 Bugünün Kaydını Kaydet", type="primary", use_container_width=True):
-            if add_daily_record(manual_kasa, settings):
-                st.success("✅ Bugünün kaydı eklendi!")
-                st.rerun()
+        with col_c:
+            giris_fiyat = st.number_input("💵 Giriş Fiyatı", min_value=0.0, step=0.01, value=0.0)
 
-    st.markdown("---")
+        with col_d:
+            lot = st.number_input("📏 Lot Büyüklüğü", min_value=0.0, step=0.01, value=1.0)
 
-    # GRAFİK
-    if challenge_data:
-        st.markdown("### 📈 Kasa Gelişimi")
-
-        # Veriyi DataFrame'e çevir
-        df = pd.DataFrame(challenge_data)
-        df['Tarih'] = pd.to_datetime(df['Tarih'])
-        df['Kasa'] = df['Kasa'].astype(float)
-        df = df.sort_values('Tarih')
-
-        # Plotly grafik
-        fig = go.Figure()
-
-        fig.add_trace(go.Scatter(
-            x=df['Tarih'],
-            y=df['Kasa'],
-            mode='lines+markers',
-            name='Kasa',
-            line=dict(color='#3b82f6', width=3),
-            marker=dict(size=8)
-        ))
-
-        fig.update_layout(
-            title="Kasa-Tarih Grafiği",
-            xaxis_title="Tarih",
-            yaxis_title="Kasa (TL)",
-            hovermode='x unified',
-            template='plotly_white',
-            height=500
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
+        if st.button("💾 İşlemi Kaydet", type="primary", use_container_width=True):
+            if enstruman and giris_fiyat > 0 and lot > 0:
+                if add_trade(yon, enstruman, giris_fiyat, lot):
+                    st.success("✅ İşlem açıldı!")
+                    st.rerun()
+            else:
+                st.error("❌ Lütfen tüm alanları doldurun!")
 
     st.markdown("---")
 
-    # TABLO
-    if challenge_data:
-        st.markdown("### 📋 Kayıtlar")
+    # AÇIK İŞLEMLER
+    st.markdown("### 🟢 Açık İşlemler")
 
-        # Veriyi DataFrame'e çevir
-        df = pd.DataFrame(challenge_data)
+    if acik_trades:
+        for trade in acik_trades:
+            trade_id = trade.get('ID')
+            yon = trade.get('Yon')
+            enstruman = trade.get('Enstruman')
+            giris = float(trade.get('Giris_Fiyat', 0))
+            lot = float(trade.get('Lot', 0))
+            tarih = trade.get('Acilis_Tarihi', '')
 
-        # Sütunları düzenle
-        df = df[['Tarih', 'Kar_Zarar', 'Kasa', 'Kalan_Gun', 'Hedef', 'Hedefe_Kalan_Tutar']]
+            with st.container():
+                col_info, col_action = st.columns([3, 1])
 
-        # Kolonları Türkçe yap
-        df.columns = ['Tarih', 'Kar/Zarar', 'Kasa', 'Kalan Gün', 'Hedef', 'Hedefe Kalan']
+                with col_info:
+                    yon_emoji = "🟢" if yon == "LONG" else "🔴"
+                    st.markdown(f"**{yon_emoji} {yon} - {enstruman}**")
+                    st.markdown(f"Giriş: ${giris:,.2f} | Lot: {lot} | Tarih: {tarih}")
 
-        # Tarihe göre sırala (en yeni en üstte)
-        df = df.sort_values('Tarih', ascending=False)
+                with col_action:
+                    cikis_fiyat = st.number_input(
+                        "Çıkış Fiyatı",
+                        min_value=0.0,
+                        step=0.01,
+                        value=0.0,
+                        key=f"cikis_{trade_id}"
+                    )
 
-        # Sayısal formatlama
-        df['Kar/Zarar'] = df['Kar/Zarar'].astype(float).apply(lambda x: f"₺{x:,.2f}")
-        df['Kasa'] = df['Kasa'].astype(float).apply(lambda x: f"₺{x:,.2f}")
-        df['Hedef'] = df['Hedef'].astype(float).apply(lambda x: f"₺{x:,.2f}")
-        df['Hedefe Kalan'] = df['Hedefe Kalan'].astype(float).apply(lambda x: f"₺{x:,.2f}")
+                    if st.button("❌ Kapat", key=f"close_{trade_id}", use_container_width=True):
+                        if cikis_fiyat > 0:
+                            success, kar_zarar = close_trade(trade_id, cikis_fiyat)
+                            if success:
+                                st.success(f"✅ İşlem kapatıldı! Kar/Zarar: ${kar_zarar:,.2f}")
+                                st.rerun()
+                        else:
+                            st.error("❌ Çıkış fiyatı girmelisiniz!")
 
+                st.markdown("---")
+    else:
+        st.info("ℹ️ Henüz açık işlem yok.")
+
+    st.markdown("---")
+
+    # KAPATILAN İŞLEMLER
+    st.markdown("### 📋 Kapatılan İşlemler")
+
+    if kapali_trades:
+        # DataFrame oluştur
+        df_data = []
+        for trade in kapali_trades:
+            df_data.append({
+                'Tarih': trade.get('Acilis_Tarihi', ''),
+                'Yön': trade.get('Yon', ''),
+                'Enstrüman': trade.get('Enstruman', ''),
+                'Giriş': f"${float(trade.get('Giris_Fiyat', 0)):,.2f}",
+                'Çıkış': f"${float(trade.get('Cikis_Fiyat', 0)):,.2f}",
+                'Lot': trade.get('Lot', ''),
+                'Kar/Zarar': f"${float(trade.get('Kar_Zarar', 0)):,.2f}",
+                'Kapatılma': trade.get('Kapanis_Tarihi', '')
+            })
+
+        df = pd.DataFrame(df_data)
+        df = df.sort_values('Kapatılma', ascending=False)
         st.dataframe(df, use_container_width=True, height=400)
+    else:
+        st.info("ℹ️ Henüz kapatılmış işlem yok.")
 
     st.markdown("---")
 
@@ -441,16 +522,21 @@ else:
             try:
                 spreadsheet = get_google_sheets(st.session_state['credentials_data'])
 
-                # Challenge ve Settings sheet'lerini temizle
-                challenge_sheet = spreadsheet.worksheet('Challenge')
-                settings_sheet = spreadsheet.worksheet('Challenge_Settings')
+                # Tüm sheet'leri temizle
+                for sheet_name in ['Challenge', 'Challenge_Settings', 'Challenge_Trades']:
+                    try:
+                        sheet = spreadsheet.worksheet(sheet_name)
+                        sheet.clear()
 
-                challenge_sheet.clear()
-                settings_sheet.clear()
-
-                # Başlıkları geri ekle
-                challenge_sheet.append_row(['ID', 'Tarih', 'Kar_Zarar', 'Kasa', 'Kalan_Gun', 'Hedef', 'Hedefe_Kalan_Tutar'])
-                settings_sheet.append_row(['Baslangic_Sermaye', 'Hedef_Tutar', 'Hedef_Sure_Gun', 'Baslangic_Tarihi'])
+                        # Başlıkları geri ekle
+                        if sheet_name == 'Challenge':
+                            sheet.append_row(['ID', 'Tarih', 'Kar_Zarar', 'Kasa', 'Kalan_Gun', 'Hedef', 'Hedefe_Kalan_Tutar'])
+                        elif sheet_name == 'Challenge_Settings':
+                            sheet.append_row(['Baslangic_Sermaye', 'Hedef_Tutar', 'Hedef_Sure_Gun', 'Baslangic_Tarihi'])
+                        elif sheet_name == 'Challenge_Trades':
+                            sheet.append_row(['ID', 'Yon', 'Enstruman', 'Giris_Fiyat', 'Lot', 'Cikis_Fiyat', 'Kar_Zarar', 'Durum', 'Acilis_Tarihi', 'Kapanis_Tarihi'])
+                    except:
+                        pass
 
                 st.success("✅ Challenge sıfırlandı!")
                 st.rerun()

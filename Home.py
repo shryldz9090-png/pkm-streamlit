@@ -41,7 +41,8 @@ def initialize_all_sheets(spreadsheet):
         'Ozlu_Sozler': ['ID', 'Tarih', 'Soz'],
         'Kendime_Notlar': ['ID', 'Tarih', 'Not'],
         'Challenge': ['ID', 'Tarih', 'Kar_Zarar', 'Kasa', 'Kalan_Gun', 'Hedef', 'Hedefe_Kalan_Tutar'],
-        'Challenge_Settings': ['Baslangic_Sermaye', 'Hedef_Tutar', 'Hedef_Sure_Gun', 'Baslangic_Tarihi']
+        'Challenge_Settings': ['Baslangic_Sermaye', 'Hedef_Tutar', 'Hedef_Sure_Gun', 'Baslangic_Tarihi'],
+        'Challenge_Trades': ['ID', 'Yon', 'Enstruman', 'Giris_Fiyat', 'Lot', 'Cikis_Fiyat', 'Kar_Zarar', 'Durum', 'Acilis_Tarihi', 'Kapanis_Tarihi']
     }
 
     created_sheets = []
