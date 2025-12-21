@@ -547,33 +547,19 @@ else:
     st.markdown("### 📋 Kapatılan İşlemler")
 
     if kapali_trades:
-        # Tablo oluştur (renklendirme ile)
-        for trade in sorted(kapali_trades, key=lambda x: x.get('Kapanis_Tarihi', ''), reverse=True):
-            kar_zarar = float(trade.get('Kar_Zarar', 0))
+        # DataFrame oluştur
+        df_kapali = pd.DataFrame(kapali_trades)
+        df_kapali = df_kapali[['Yon', 'Enstruman', 'Giris_Fiyat', 'Lot', 'Cikis_Fiyat', 'Kar_Zarar', 'Acilis_Tarihi', 'Kapanis_Tarihi']]
 
-            # Renk belirleme
-            if kar_zarar > 0:
-                bg_color = "#d4edda"  # Açık yeşil (kar)
-                border_color = "#28a745"  # Koyu yeşil
-            else:
-                bg_color = "#f8d7da"  # Açık kırmızı (zarar)
-                border_color = "#dc3545"  # Koyu kırmızı
+        # Fiyatları formatlayalım
+        df_kapali['Giris_Fiyat'] = df_kapali['Giris_Fiyat'].apply(lambda x: f"${float(x):,.2f}")
+        df_kapali['Cikis_Fiyat'] = df_kapali['Cikis_Fiyat'].apply(lambda x: f"${float(x):,.2f}")
+        df_kapali['Kar_Zarar'] = df_kapali['Kar_Zarar'].apply(lambda x: f"${float(x):,.2f}")
 
-            # İşlem kartı
-            st.markdown(f"""
-            <div style='
-                background-color: {bg_color};
-                border-left: 5px solid {border_color};
-                padding: 15px;
-                margin-bottom: 10px;
-                border-radius: 5px;
-            '>
-                <b>{trade.get('Yon', '')} - {trade.get('Enstruman', '')}</b><br>
-                📅 {trade.get('Acilis_Tarihi', '')} → {trade.get('Kapanis_Tarihi', '')}<br>
-                💵 Giriş: ${float(trade.get('Giris_Fiyat', 0)):,.2f} | Çıkış: ${float(trade.get('Cikis_Fiyat', 0)):,.2f} | Lot: {trade.get('Lot', '')}<br>
-                <b>Kar/Zarar: ${kar_zarar:,.2f}</b>
-            </div>
-            """, unsafe_allow_html=True)
+        # En son kapananlar üstte olsun
+        df_kapali = df_kapali.sort_values('Kapanis_Tarihi', ascending=False)
+
+        st.dataframe(df_kapali, use_container_width=True, hide_index=True)
     else:
         st.info("ℹ️ Henüz kapatılmış işlem yok.")
 
