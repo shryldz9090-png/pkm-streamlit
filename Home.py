@@ -65,6 +65,11 @@ def initialize_all_sheets(spreadsheet):
     return created_sheets, existing_sheets
 
 # =============================================================================
+# LOCALSTORAGE PERSISTENCE
+# =============================================================================
+# NOT: localStorage verileri tarayıcıda saklanır ve sayfa yenilense bile kalır
+
+# =============================================================================
 # AUTHENTICATION & SETUP
 # =============================================================================
 
@@ -75,6 +80,7 @@ if 'credentials_loaded' not in st.session_state:
     st.session_state['credentials_loaded'] = False
 if 'imgbb_api_key' not in st.session_state:
     st.session_state['imgbb_api_key'] = ''
+
 
 # 1. ŞİFRE KONTROLÜ
 if not st.session_state['authenticated']:
@@ -87,6 +93,8 @@ if not st.session_state['authenticated']:
     Bu platform **YouTube takipçilerimiz için özel** olarak hazırlanmıştır.
 
     Giriş şifresini YouTube videosunda bulabilirsiniz.
+
+    💾 **Bir kez giriş yaptığınızda, bilgileriniz tarayıcınızda saklanacak ve bir daha girmenize gerek kalmayacak!**
     """)
 
     password = st.text_input("🔑 Giriş Şifresi", type="password", placeholder="YouTube'da paylaşılan şifre")
@@ -95,6 +103,14 @@ if not st.session_state['authenticated']:
         # Şifre kontrolü (YouTube'da paylaşacağın şifre)
         if password == "TRADE2025":
             st.session_state['authenticated'] = True
+
+            # localStorage'a kaydet
+            st.markdown(f"""
+            <script>
+            localStorage.setItem('pkm_password', 'TRADE2025');
+            </script>
+            """, unsafe_allow_html=True)
+
             st.success("✅ Giriş başarılı! Hoş geldiniz!")
             st.balloons()
             st.rerun()
@@ -138,6 +154,15 @@ if not st.session_state['credentials_loaded']:
                 # Session state'e kaydet (dosyaya değil!)
                 st.session_state['credentials_data'] = creds_data
                 st.session_state['credentials_loaded'] = True
+
+                # localStorage'a kaydet
+                creds_json = json.dumps(creds_data)
+                st.markdown(f"""
+                <script>
+                localStorage.setItem('pkm_credentials', '{creds_json.replace("'", "\\'")}');
+                </script>
+                """, unsafe_allow_html=True)
+
                 st.success("✅ Credentials başarıyla yüklendi!")
                 st.info(f"📧 Service Account: {creds_data['client_email']}")
 
@@ -196,6 +221,14 @@ if not st.session_state['imgbb_api_key']:
         if st.button("💾 Kaydet", use_container_width=True):
             if api_key and len(api_key) > 10:
                 st.session_state['imgbb_api_key'] = api_key
+
+                # localStorage'a kaydet
+                st.markdown(f"""
+                <script>
+                localStorage.setItem('pkm_imgbb_api', '{api_key}');
+                </script>
+                """, unsafe_allow_html=True)
+
                 st.success("✅ API Key kaydedildi!")
                 st.rerun()
             else:
@@ -274,6 +307,15 @@ with st.sidebar:
 
     # Çıkış butonu
     if st.button("🚪 Çıkış Yap", use_container_width=True):
+        # localStorage'ı temizle
+        st.markdown("""
+        <script>
+        localStorage.removeItem('pkm_password');
+        localStorage.removeItem('pkm_credentials');
+        localStorage.removeItem('pkm_imgbb_api');
+        </script>
+        """, unsafe_allow_html=True)
+
         # Session state temizle
         st.session_state.clear()
         st.rerun()
