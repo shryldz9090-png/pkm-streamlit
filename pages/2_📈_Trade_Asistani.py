@@ -1011,12 +1011,12 @@ elif feature == "📊 Pozisyon Yönetimi":
                                     st.error("❌ Çıkış fiyatı girmelisiniz!")
 
                         with col_b:
-                            if st.button("✏️ Düzenle", key=f"edit_{pos_id}", use_container_width=True):
+                            if st.button("✏️ Düzenle", key=f"edit_btn_{pos_id}", use_container_width=True):
                                 st.session_state[f"edit_pos_{pos_id}"] = True
                                 st.rerun()
 
                         with col_c:
-                            if st.button("🗑️ Sil", key=f"del_{pos_id}", use_container_width=True):
+                            if st.button("🗑️ Sil", key=f"del_btn_{pos_id}", use_container_width=True):
                                 if delete_position(pos_id):
                                     st.success("✅ Pozisyon silindi!")
                                     st.rerun()
@@ -1373,12 +1373,12 @@ elif feature == "🖼️ Görsel Tecrübeler":
                         col_edit, col_delete = st.columns(2)
 
                         with col_edit:
-                            if st.button("✏️ Düzenle", key=f"edit_exp_{exp_id}", use_container_width=True):
+                            if st.button("✏️ Düzenle", key=f"edit_btn_{exp_id}", use_container_width=True):
                                 st.session_state[f"edit_exp_{exp_id}"] = True
                                 st.rerun()
 
                         with col_delete:
-                            if st.button("🗑️ Sil", key=f"del_exp_{exp_id}", use_container_width=True):
+                            if st.button("🗑️ Sil", key=f"del_btn_{exp_id}", use_container_width=True):
                                 st.session_state[f"confirm_delete_exp_{exp_id}"] = True
                                 st.rerun()
 
