@@ -39,7 +39,9 @@ def initialize_all_sheets(spreadsheet):
         'Gorsel_Tecrubeler': ['ID', 'Tarih', 'Baslik', 'Aciklama', 'Kategori', 'Gorsel_URL', 'Delete_URL'],
         'Kategoriler': ['ID', 'Kategori_Adi', 'Renk'],
         'Ozlu_Sozler': ['ID', 'Tarih', 'Soz'],
-        'Kendime_Notlar': ['ID', 'Tarih', 'Not']
+        'Kendime_Notlar': ['ID', 'Tarih', 'Not'],
+        'Challenge': ['ID', 'Tarih', 'Kar_Zarar', 'Kasa', 'Kalan_Gun', 'Hedef', 'Hedefe_Kalan_Tutar'],
+        'Challenge_Settings': ['Baslangic_Sermaye', 'Hedef_Tutar', 'Hedef_Sure_Gun', 'Baslangic_Tarihi']
     }
 
     created_sheets = []
