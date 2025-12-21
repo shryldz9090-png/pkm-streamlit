@@ -302,6 +302,68 @@ def close_trade(trade_id, cikis_fiyat):
         st.error(f"İşlem kapatılırken hata: {e}")
         return False, 0
 
+def delete_closed_trade(trade_id):
+    """Kapatılmış işlemi sil"""
+    try:
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.worksheet('Challenge_Trades')
+
+        all_data = sheet.get_all_values()
+        header = all_data[0]
+        id_col = header.index('ID') + 1
+
+        # Satırı bul ve sil
+        for row_idx, row in enumerate(all_data[1:], start=2):
+            if str(row[id_col - 1]) == str(trade_id):
+                sheet.delete_rows(row_idx)
+                return True
+
+        return False
+    except Exception as e:
+        st.error(f"İşlem silinirken hata: {e}")
+        return False
+
+def update_closed_trade(trade_id, cikis_fiyat):
+    """Kapatılmış işlemin çıkış fiyatını güncelle"""
+    try:
+        spreadsheet = get_google_sheets(st.session_state['credentials_data'])
+        sheet = spreadsheet.worksheet('Challenge_Trades')
+
+        all_data = sheet.get_all_values()
+        header = all_data[0]
+
+        # Kolon indekslerini bul
+        id_col = header.index('ID') + 1
+        yon_col = header.index('Yon') + 1
+        giris_col = header.index('Giris_Fiyat') + 1
+        lot_col = header.index('Lot') + 1
+        cikis_col = header.index('Cikis_Fiyat') + 1
+        kar_zarar_col = header.index('Kar_Zarar') + 1
+
+        # Satırı bul ve güncelle
+        for row_idx, row in enumerate(all_data[1:], start=2):
+            if str(row[id_col - 1]) == str(trade_id):
+                yon = row[yon_col - 1]
+                giris = float(row[giris_col - 1])
+                lot = float(row[lot_col - 1])
+
+                # Kar/Zarar yeniden hesapla
+                if yon == 'LONG':
+                    kar_zarar = (float(cikis_fiyat) - giris) * lot
+                else:  # SHORT
+                    kar_zarar = (giris - float(cikis_fiyat)) * lot
+
+                # Güncelleme yap
+                sheet.update_cell(row_idx, cikis_col, float(cikis_fiyat))
+                sheet.update_cell(row_idx, kar_zarar_col, round(kar_zarar, 2))
+
+                return True
+
+        return False
+    except Exception as e:
+        st.error(f"İşlem güncellenirken hata: {e}")
+        return False
+
 # =============================================================================
 # MAIN PAGE
 # =============================================================================
@@ -547,19 +609,87 @@ else:
     st.markdown("### 📋 Kapatılan İşlemler")
 
     if kapali_trades:
-        # DataFrame oluştur
-        df_kapali = pd.DataFrame(kapali_trades)
-        df_kapali = df_kapali[['Yon', 'Enstruman', 'Giris_Fiyat', 'Lot', 'Cikis_Fiyat', 'Kar_Zarar', 'Acilis_Tarihi', 'Kapanis_Tarihi']]
-
-        # Fiyatları formatlayalım
-        df_kapali['Giris_Fiyat'] = df_kapali['Giris_Fiyat'].apply(lambda x: f"${float(x):,.2f}")
-        df_kapali['Cikis_Fiyat'] = df_kapali['Cikis_Fiyat'].apply(lambda x: f"${float(x):,.2f}")
-        df_kapali['Kar_Zarar'] = df_kapali['Kar_Zarar'].apply(lambda x: f"${float(x):,.2f}")
-
         # En son kapananlar üstte olsun
-        df_kapali = df_kapali.sort_values('Kapanis_Tarihi', ascending=False)
+        sorted_trades = sorted(kapali_trades, key=lambda x: x.get('Kapanis_Tarihi', ''), reverse=True)
 
-        st.dataframe(df_kapali, use_container_width=True, hide_index=True)
+        # Tablo başlığı
+        header_cols = st.columns([1, 1.5, 1, 0.8, 1, 1, 1.5, 1.5, 1.5])
+        header_cols[0].markdown("**Yon**")
+        header_cols[1].markdown("**Enstruman**")
+        header_cols[2].markdown("**Giriş_Fiyat**")
+        header_cols[3].markdown("**Lot**")
+        header_cols[4].markdown("**Çıkış_Fiyat**")
+        header_cols[5].markdown("**Kar_Zarar**")
+        header_cols[6].markdown("**Açılış_Tarihi**")
+        header_cols[7].markdown("**Kapanış_Tarihi**")
+        header_cols[8].markdown("**İşlemler**")
+
+        st.markdown("---")
+
+        # Her işlem için satır
+        for trade in sorted_trades:
+            trade_id = trade.get('ID', '')
+            kar_zarar = float(trade.get('Kar_Zarar', 0))
+
+            # Kar/Zarar için renk
+            if kar_zarar > 0:
+                kar_zarar_color = "🟢"  # Yeşil
+                kar_zarar_text = f"${kar_zarar:,.2f}"
+            else:
+                kar_zarar_color = "🔴"  # Kırmızı
+                kar_zarar_text = f"${kar_zarar:,.2f}"
+
+            cols = st.columns([1, 1.5, 1, 0.8, 1, 1, 1.5, 1.5, 1.5])
+
+            cols[0].write(trade.get('Yon', ''))
+            cols[1].write(trade.get('Enstruman', ''))
+            cols[2].write(f"${float(trade.get('Giris_Fiyat', 0)):,.2f}")
+            cols[3].write(trade.get('Lot', ''))
+            cols[4].write(f"${float(trade.get('Cikis_Fiyat', 0)):,.2f}")
+            cols[5].markdown(f"{kar_zarar_color} **{kar_zarar_text}**")
+            cols[6].write(trade.get('Acilis_Tarihi', ''))
+            cols[7].write(trade.get('Kapanis_Tarihi', ''))
+
+            # İşlem butonları
+            btn_col1, btn_col2 = cols[8].columns(2)
+
+            # Düzenle butonu
+            if btn_col1.button("✏️", key=f"edit_closed_{trade_id}", help="Düzenle"):
+                st.session_state[f'edit_closed_{trade_id}'] = True
+
+            # Sil butonu
+            if btn_col2.button("🗑️", key=f"del_closed_{trade_id}", help="Sil"):
+                if delete_closed_trade(trade_id):
+                    st.success("✅ İşlem silindi!")
+                    st.rerun()
+                else:
+                    st.error("❌ İşlem silinemedi!")
+
+            # Düzenleme modalı
+            if st.session_state.get(f'edit_closed_{trade_id}', False):
+                with st.expander(f"✏️ İşlem #{trade_id} Düzenle", expanded=True):
+                    new_cikis = st.number_input(
+                        "Yeni Çıkış Fiyatı",
+                        value=float(trade.get('Cikis_Fiyat', 0)),
+                        step=0.01,
+                        key=f"new_cikis_{trade_id}"
+                    )
+
+                    col_btn1, col_btn2 = st.columns(2)
+
+                    if col_btn1.button("💾 Kaydet", key=f"save_{trade_id}"):
+                        if update_closed_trade(trade_id, new_cikis):
+                            st.success("✅ İşlem güncellendi!")
+                            st.session_state[f'edit_closed_{trade_id}'] = False
+                            st.rerun()
+                        else:
+                            st.error("❌ Güncelleme başarısız!")
+
+                    if col_btn2.button("❌ İptal", key=f"cancel_{trade_id}"):
+                        st.session_state[f'edit_closed_{trade_id}'] = False
+                        st.rerun()
+
+            st.markdown("---")
     else:
         st.info("ℹ️ Henüz kapatılmış işlem yok.")
 
