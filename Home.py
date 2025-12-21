@@ -1,6 +1,8 @@
 import streamlit as st
 import json
 import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 st.set_page_config(
     page_title="Para Komuta Merkezi",
@@ -8,6 +10,57 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# =============================================================================
+# GOOGLE SHEETS AUTO-SETUP FUNCTIONS
+# =============================================================================
+
+@st.cache_resource
+def get_sheets_client(_creds_data):
+    """Connect to Google Sheets using credentials from session state."""
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(_creds_data, scope)
+    client = gspread.authorize(creds)
+    return client.open("PKM Database")
+
+def initialize_all_sheets(spreadsheet):
+    """
+    Tüm gerekli sheet'leri kontrol et ve eksik olanları oluştur.
+    Kullanıcı hiçbir şey yapmaz - otomatik kurulum!
+    """
+    # Tüm gerekli sheet'ler ve başlık satırları
+    required_sheets = {
+        'assets': ['ID', 'asset_type', 'symbol', 'amount', 'buy_price', 'data_source', 'manual_price', 'basket', 'created_at'],
+        'debts': ['ID', 'debt_type', 'description', 'amount', 'due_date'],
+        'asset_history': ['ID', 'asset_id', 'action', 'amount', 'price', 'date', 'notes'],
+        'debt_history': ['ID', 'debt_id', 'action', 'amount', 'date', 'notes'],
+        'closed_positions': ['ID', 'symbol', 'asset_type', 'amount', 'buy_price', 'sell_price', 'profit_loss', 'buy_date', 'sell_date', 'notes'],
+        'Pozisyonlar': ['ID', 'Symbol', 'Tip', 'Pozisyon', 'Giriş', 'Stop', 'Hedef', 'Miktar', 'Durum', 'Tarih'],
+        'Gorsel_Tecrubeler': ['ID', 'Tarih', 'Baslik', 'Aciklama', 'Kategori', 'Gorsel_URL', 'Delete_URL'],
+        'Kategoriler': ['ID', 'Kategori_Adi', 'Renk'],
+        'Ozlu_Sozler': ['ID', 'Tarih', 'Soz'],
+        'Kendime_Notlar': ['ID', 'Tarih', 'Not']
+    }
+
+    created_sheets = []
+    existing_sheets = []
+
+    for sheet_name, headers in required_sheets.items():
+        try:
+            # Önce var mı kontrol et
+            spreadsheet.worksheet(sheet_name)
+            existing_sheets.append(sheet_name)
+        except gspread.exceptions.WorksheetNotFound:
+            # Yoksa oluştur
+            try:
+                sheet = spreadsheet.add_worksheet(title=sheet_name, rows=100, cols=len(headers))
+                # Başlık satırını ekle
+                sheet.append_row(headers)
+                created_sheets.append(sheet_name)
+            except Exception as e:
+                st.error(f"❌ '{sheet_name}' sheet'i oluşturulurken hata: {e}")
+
+    return created_sheets, existing_sheets
 
 # =============================================================================
 # AUTHENTICATION & SETUP
@@ -169,11 +222,52 @@ if not st.session_state['imgbb_api_key']:
 # ANA SAYFA (TÜM SETUP TAMAMLANDIYSA)
 # =============================================================================
 
+# =============================================================================
+# OTOMATIK GOOGLE SHEETS KURULUMU
+# =============================================================================
+
+# İlk giriş kontrolü - sheet'leri otomatik oluştur
+if 'sheets_initialized' not in st.session_state:
+    st.session_state['sheets_initialized'] = False
+
+if st.session_state['credentials_loaded'] and not st.session_state['sheets_initialized']:
+    with st.spinner("📊 Google Sheets bağlantısı kontrol ediliyor..."):
+        try:
+            db = get_sheets_client(st.session_state['credentials_data'])
+
+            with st.spinner("🔧 Gerekli sheet'ler kontrol ediliyor ve oluşturuluyor..."):
+                created_sheets, existing_sheets = initialize_all_sheets(db)
+
+            # Sonuç mesajı
+            if created_sheets:
+                st.success(f"✅ {len(created_sheets)} yeni sheet oluşturuldu!")
+                with st.expander("📋 Oluşturulan sheet'ler"):
+                    for sheet in created_sheets:
+                        st.write(f"- {sheet}")
+
+            if existing_sheets:
+                st.info(f"ℹ️ {len(existing_sheets)} sheet zaten mevcut.")
+
+            # Başarılı kurulum işaretle
+            st.session_state['sheets_initialized'] = True
+
+            # 2 saniye bekle ve sayfayı yenile
+            import time
+            time.sleep(2)
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Google Sheets bağlantı hatası: {e}")
+            st.warning("Lütfen Google Sheets'inizin adının **'PKM Database'** olduğundan ve service account'a paylaşıldığından emin olun!")
+            st.stop()
+
 # Sidebar - Kurulum Durumu
 with st.sidebar:
     st.success("✅ Giriş yapıldı")
     st.success("✅ Credentials yüklendi")
     st.success("✅ imgbb API aktif")
+    if st.session_state.get('sheets_initialized'):
+        st.success("✅ Google Sheets hazır")
     st.markdown("---")
 
     # Çıkış butonu
