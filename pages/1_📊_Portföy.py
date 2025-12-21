@@ -274,7 +274,7 @@ def get_sheet_data_as_dict(worksheet):
     return records
 
 def fetch_price(symbol, asset_type):
-    """Fetch current price using yfinance with caching - EXACTLY like Flask app."""
+    """Fetch current price using yfinance with caching and timeout protection."""
     cache_key = f"{asset_type}:{symbol}"
 
     # Check cache
@@ -285,12 +285,31 @@ def fetch_price(symbol, asset_type):
                 return cached_data['price']
 
     try:
-        # Hisse senetleri için .IS ekleme (EXACTLY like Flask app)
+        # Hisse senetleri için .IS ekleme
         if asset_type == 'hisse' and not symbol.endswith('.IS'):
             symbol = symbol + '.IS'
 
         ticker = yf.Ticker(symbol)
-        data = ticker.history(period='1d')
+
+        # TIMEOUT EKLENDI: Maksimum 15 saniye bekle
+        import signal
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError(f"Timeout: {symbol}")
+
+        # Windows'ta signal çalışmaz, try-except ile halledelim
+        try:
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(15)  # 15 saniye timeout
+        except:
+            pass  # Windows'ta signal yok, devam et
+
+        data = ticker.history(period='1d', timeout=15)
+
+        try:
+            signal.alarm(0)  # Timer'ı iptal et
+        except:
+            pass
 
         if not data.empty:
             price = data['Close'].iloc[-1]
@@ -303,21 +322,45 @@ def fetch_price(symbol, asset_type):
                 }
 
             return price
+        else:
+            print(f"⚠️ {symbol} - Veri boş döndü")
+
+    except TimeoutError as e:
+        print(f"⏱️ {symbol} - TIMEOUT (15 saniye aşıldı), alış fiyatı kullanılacak")
     except Exception as e:
-        print(f"Fiyat getirme hatası {symbol}: {e}")
+        print(f"❌ {symbol} - Hata: {str(e)[:100]}")
 
     return None
 
 def get_usd_tl_rate():
-    """Get USD/TL exchange rate."""
-    try:
-        ticker = yf.Ticker("TRY=X")
-        data = ticker.history(period='1d')
-        if not data.empty:
-            return data['Close'].iloc[-1]
-    except:
-        pass
-    return 34.0  # Fallback rate
+    """Get USD/TL exchange rate - tries multiple tickers with timeout."""
+    # Birden fazla ticker dene (Yahoo Finance bazen ticker değiştiriyor)
+    tickers_to_try = ["USDTRY=X", "TRY=X", "TRYUSD=X"]
+
+    for ticker_symbol in tickers_to_try:
+        try:
+            ticker = yf.Ticker(ticker_symbol)
+            # TIMEOUT: Maksimum 15 saniye
+            data = ticker.history(period='1d', timeout=15)
+            if not data.empty:
+                rate = data['Close'].iloc[-1]
+                # TRY=X tersten geliyorsa düzelt
+                if ticker_symbol == "TRY=X" and rate < 1:
+                    rate = 1 / rate
+                # Makul aralıkta mı kontrol et (30-50 TL arası)
+                if 30 <= rate <= 50:
+                    print(f"✅ USD/TL kuru: {rate:.4f} ({ticker_symbol})")
+                    return rate
+        except TimeoutError:
+            print(f"⏱️ {ticker_symbol} timeout - sonrakini deniyorum")
+            continue
+        except Exception as e:
+            print(f"❌ {ticker_symbol} hata: {str(e)[:50]}")
+            continue
+
+    # Hiçbiri çalışmazsa fallback
+    print("⚠️ USD/TL kuru çekilemedi, fallback kullanılıyor: 42.0")
+    return 42.0  # Güncel fallback değer (manuel güncelle)
 
 def get_market_data():
     """Get market data for dashboard."""
