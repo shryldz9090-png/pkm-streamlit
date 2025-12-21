@@ -185,7 +185,7 @@ def get_sheets_client(_creds_data):
 # Price cache to avoid too many API calls
 price_cache = {}
 cache_lock = threading.Lock()
-CACHE_DURATION = 300  # 5 minutes
+CACHE_DURATION = 1800  # 30 minutes (daha az API çağrısı = daha hızlı)
 
 def parse_turkish_decimal(value):
     """
@@ -291,25 +291,8 @@ def fetch_price(symbol, asset_type):
 
         ticker = yf.Ticker(symbol)
 
-        # TIMEOUT EKLENDI: Maksimum 15 saniye bekle
-        import signal
-
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Timeout: {symbol}")
-
-        # Windows'ta signal çalışmaz, try-except ile halledelim
-        try:
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(15)  # 15 saniye timeout
-        except:
-            pass  # Windows'ta signal yok, devam et
-
-        data = ticker.history(period='1d', timeout=15)
-
-        try:
-            signal.alarm(0)  # Timer'ı iptal et
-        except:
-            pass
+        # TIMEOUT: Maksimum 5 saniye (agresif!)
+        data = ticker.history(period='1d', timeout=5)
 
         if not data.empty:
             price = data['Close'].iloc[-1]
@@ -326,7 +309,7 @@ def fetch_price(symbol, asset_type):
             print(f"⚠️ {symbol} - Veri boş döndü")
 
     except TimeoutError as e:
-        print(f"⏱️ {symbol} - TIMEOUT (15 saniye aşıldı), alış fiyatı kullanılacak")
+        print(f"⏱️ {symbol} - TIMEOUT (5 saniye aşıldı), alış fiyatı kullanılacak")
     except Exception as e:
         print(f"❌ {symbol} - Hata: {str(e)[:100]}")
 
@@ -340,8 +323,8 @@ def get_usd_tl_rate():
     for ticker_symbol in tickers_to_try:
         try:
             ticker = yf.Ticker(ticker_symbol)
-            # TIMEOUT: Maksimum 15 saniye
-            data = ticker.history(period='1d', timeout=15)
+            # TIMEOUT: Maksimum 5 saniye (agresif!)
+            data = ticker.history(period='1d', timeout=5)
             if not data.empty:
                 rate = data['Close'].iloc[-1]
                 # TRY=X tersten geliyorsa düzelt
