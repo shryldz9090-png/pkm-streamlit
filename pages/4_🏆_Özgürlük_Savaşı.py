@@ -488,27 +488,92 @@ else:
 
     st.markdown("---")
 
+    # KASA GRAFİĞİ
+    st.markdown("### 📈 Kasa Gelişimi")
+
+    if kapali_trades:
+        # Kasa gelişimini hesapla
+        kasa_data = []
+        running_kasa = settings['baslangic_sermaye']
+
+        # Başlangıç noktası
+        kasa_data.append({
+            'Tarih': settings['baslangic_tarihi'],
+            'Kasa': running_kasa
+        })
+
+        # Her işlemden sonra kasayı güncelle
+        sorted_trades = sorted(kapali_trades, key=lambda x: x.get('Kapanis_Tarihi', ''))
+        for trade in sorted_trades:
+            kar_zarar = float(trade.get('Kar_Zarar', 0))
+            running_kasa += kar_zarar
+            kasa_data.append({
+                'Tarih': trade.get('Kapanis_Tarihi', '').split(' ')[0],  # Sadece tarih
+                'Kasa': running_kasa
+            })
+
+        # DataFrame oluştur
+        df_kasa = pd.DataFrame(kasa_data)
+        df_kasa['Tarih'] = pd.to_datetime(df_kasa['Tarih'])
+
+        # Plotly grafik
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=df_kasa['Tarih'],
+            y=df_kasa['Kasa'],
+            mode='lines+markers',
+            name='Kasa',
+            line=dict(color='#3b82f6', width=3),
+            marker=dict(size=8),
+            fill='tozeroy',
+            fillcolor='rgba(59, 130, 246, 0.1)'
+        ))
+
+        fig.update_layout(
+            title="Kasa-Tarih Grafiği",
+            xaxis_title="Tarih",
+            yaxis_title="Kasa ($)",
+            hovermode='x unified',
+            template='plotly_white',
+            height=400
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
     # KAPATILAN İŞLEMLER
     st.markdown("### 📋 Kapatılan İşlemler")
 
     if kapali_trades:
-        # DataFrame oluştur
-        df_data = []
-        for trade in kapali_trades:
-            df_data.append({
-                'Tarih': trade.get('Acilis_Tarihi', ''),
-                'Yön': trade.get('Yon', ''),
-                'Enstrüman': trade.get('Enstruman', ''),
-                'Giriş': f"${float(trade.get('Giris_Fiyat', 0)):,.2f}",
-                'Çıkış': f"${float(trade.get('Cikis_Fiyat', 0)):,.2f}",
-                'Lot': trade.get('Lot', ''),
-                'Kar/Zarar': f"${float(trade.get('Kar_Zarar', 0)):,.2f}",
-                'Kapatılma': trade.get('Kapanis_Tarihi', '')
-            })
+        # Tablo oluştur (renklendirme ile)
+        for trade in sorted(kapali_trades, key=lambda x: x.get('Kapanis_Tarihi', ''), reverse=True):
+            kar_zarar = float(trade.get('Kar_Zarar', 0))
 
-        df = pd.DataFrame(df_data)
-        df = df.sort_values('Kapatılma', ascending=False)
-        st.dataframe(df, use_container_width=True, height=400)
+            # Renk belirleme
+            if kar_zarar > 0:
+                bg_color = "#d4edda"  # Açık yeşil (kar)
+                border_color = "#28a745"  # Koyu yeşil
+            else:
+                bg_color = "#f8d7da"  # Açık kırmızı (zarar)
+                border_color = "#dc3545"  # Koyu kırmızı
+
+            # İşlem kartı
+            st.markdown(f"""
+            <div style='
+                background-color: {bg_color};
+                border-left: 5px solid {border_color};
+                padding: 15px;
+                margin-bottom: 10px;
+                border-radius: 5px;
+            '>
+                <b>{trade.get('Yon', '')} - {trade.get('Enstruman', '')}</b><br>
+                📅 {trade.get('Acilis_Tarihi', '')} → {trade.get('Kapanis_Tarihi', '')}<br>
+                💵 Giriş: ${float(trade.get('Giris_Fiyat', 0)):,.2f} | Çıkış: ${float(trade.get('Cikis_Fiyat', 0)):,.2f} | Lot: {trade.get('Lot', '')}<br>
+                <b>Kar/Zarar: ${kar_zarar:,.2f}</b>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.info("ℹ️ Henüz kapatılmış işlem yok.")
 
