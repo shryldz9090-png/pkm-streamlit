@@ -72,6 +72,19 @@ def get_next_id(sheet):
     except:
         return 1
 
+def safe_float(value, default=0):
+    """String'i güvenli şekilde float'a çevirir (virgül ve nokta desteği)"""
+    try:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if not value or value == '':
+            return default
+        # Virgülü noktaya çevir
+        value_str = str(value).replace(',', '.')
+        return float(value_str)
+    except:
+        return default
+
 # =============================================================================
 # CHALLENGE FUNCTIONS
 # =============================================================================
@@ -567,7 +580,7 @@ else:
         # Her işlemden sonra kasayı güncelle
         sorted_trades = sorted(kapali_trades, key=lambda x: x.get('Kapanis_Tarihi', ''))
         for trade in sorted_trades:
-            kar_zarar = float(trade.get('Kar_Zarar', 0))
+            kar_zarar = safe_float(trade.get('Kar_Zarar', 0))
             running_kasa += kar_zarar
             kasa_data.append({
                 'Tarih': trade.get('Kapanis_Tarihi', '').split(' ')[0],  # Sadece tarih
@@ -629,7 +642,7 @@ else:
         # Her işlem için satır
         for trade in sorted_trades:
             trade_id = trade.get('ID', '')
-            kar_zarar = float(trade.get('Kar_Zarar', 0))
+            kar_zarar = safe_float(trade.get('Kar_Zarar', 0))
 
             # Kar/Zarar için renk
             if kar_zarar > 0:
@@ -643,9 +656,9 @@ else:
 
             cols[0].write(trade.get('Yon', ''))
             cols[1].write(trade.get('Enstruman', ''))
-            cols[2].write(f"${float(trade.get('Giris_Fiyat', 0)):,.2f}")
+            cols[2].write(f"${safe_float(trade.get('Giris_Fiyat', 0)):,.2f}")
             cols[3].write(trade.get('Lot', ''))
-            cols[4].write(f"${float(trade.get('Cikis_Fiyat', 0)):,.2f}")
+            cols[4].write(f"${safe_float(trade.get('Cikis_Fiyat', 0)):,.2f}")
             cols[5].markdown(f"{kar_zarar_color} **{kar_zarar_text}**")
             cols[6].write(trade.get('Acilis_Tarihi', ''))
             cols[7].write(trade.get('Kapanis_Tarihi', ''))
@@ -670,7 +683,7 @@ else:
                 with st.expander(f"✏️ İşlem #{trade_id} Düzenle", expanded=True):
                     new_cikis = st.number_input(
                         "Yeni Çıkış Fiyatı",
-                        value=float(trade.get('Cikis_Fiyat', 0)),
+                        value=safe_float(trade.get('Cikis_Fiyat', 0)),
                         step=0.01,
                         key=f"new_cikis_{trade_id}"
                     )
