@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 st.set_page_config(
-    page_title="Challenge - Özgürlük Savaşı",
+    page_title="Özgürlük Savaşı",
     page_icon="🏆",
     layout="wide"
 )
