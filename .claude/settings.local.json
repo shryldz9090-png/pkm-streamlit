@@ -42,7 +42,9 @@
       "Bash(git remote set-url:*)",
       "Bash(git remote:*)",
       "Bash(git config:*)",
-      "Bash(set GIT_ASKPASS=echo)"
+      "Bash(set GIT_ASKPASS=echo)",
+      "Bash(move \"2_📈_Trade_Asistani.py\" \"temp_trade.py\")",
+      "Bash(ren:*)"
     ],
     "deny": [],
     "ask": []
